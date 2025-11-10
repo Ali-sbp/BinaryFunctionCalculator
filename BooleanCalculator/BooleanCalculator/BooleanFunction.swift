@@ -712,6 +712,138 @@ class BooleanFunction: ObservableObject {
         return terms.isEmpty ? "0" : terms.joined(separator: " ∨ ")
     }
     
+    // MARK: - Polynomial Form (Zhegalkin Polynomial / ANF)
+    
+    // Get polynomial form using coefficients method
+    func getPolynomialFormCoefficients() -> (polynomial: String, steps: [String]) {
+        var steps: [String] = []
+        steps.append("Method 1: Coefficients Method (Möbius Transform)")
+        steps.append("")
+        steps.append("Truth vector: [\(truthVector.map { $0 ? "1" : "0" }.joined(separator: ", "))]")
+        steps.append("f = [f(0,0,0), f(0,0,1), f(0,1,0), f(0,1,1), f(1,0,0), f(1,0,1), f(1,1,0), f(1,1,1)]")
+        steps.append("")
+        
+        // Create coefficient array (copy of truth vector as integers)
+        var coeffs = truthVector.map { $0 ? 1 : 0 }
+        steps.append("Initial coefficients: [\(coeffs.map(String.init).joined(separator: ", "))]")
+        steps.append("")
+        
+        // Apply Möbius transform
+        steps.append("Applying Möbius transform (XOR combinations):")
+        
+        // For each bit position (z=1, y=2, x=4)
+        for bit in [1, 2, 4] {
+            steps.append("")
+            steps.append("Processing bit \(bit == 1 ? "z" : (bit == 2 ? "y" : "x")):")
+            var newCoeffs = coeffs
+            for i in 0..<8 {
+                if (i & bit) != 0 {
+                    newCoeffs[i] = (coeffs[i] + coeffs[i ^ bit]) % 2
+                    steps.append("  a[\(i)] = (a[\(i)] ⊕ a[\(i ^ bit)]) = (\(coeffs[i]) ⊕ \(coeffs[i ^ bit])) = \(newCoeffs[i])")
+                }
+            }
+            coeffs = newCoeffs
+            steps.append("  Result: [\(coeffs.map(String.init).joined(separator: ", "))]")
+        }
+        
+        steps.append("")
+        steps.append("Final coefficients: [\(coeffs.map(String.init).joined(separator: ", "))]")
+        steps.append("")
+        
+        // Build polynomial from coefficients
+        var terms: [String] = []
+        for i in 0..<8 {
+            if coeffs[i] == 1 {
+                let term = indexToPolynomialTerm(i)
+                terms.append(term)
+                steps.append("Coefficient a[\(i)] = 1 → term: \(term)")
+            }
+        }
+        
+        let polynomial = terms.isEmpty ? "0" : terms.joined(separator: " ⊕ ")
+        steps.append("")
+        steps.append("Polynomial: P_f(x,y,z) = \(polynomial)")
+        
+        return (polynomial, steps)
+    }
+    
+    // Get polynomial form using Pascal's triangle method (XOR of lines)
+    func getPolynomialFormTriangle() -> (polynomial: String, steps: [String]) {
+        var steps: [String] = []
+        steps.append("Method 2: Pascal's Triangle Method (XOR of diagonals)")
+        steps.append("")
+        steps.append("Truth vector: [\(truthVector.map { $0 ? "1" : "0" }.joined(separator: ", "))]")
+        steps.append("")
+        
+        // Build triangle
+        var triangle: [[Int]] = []
+        triangle.append(truthVector.map { $0 ? 1 : 0 })
+        
+        steps.append("Triangle construction (each row is XOR of adjacent elements):")
+        steps.append("")
+        steps.append("Row 0: [\(triangle[0].map(String.init).joined(separator: ", "))]")
+        
+        while triangle.last!.count > 1 {
+            let lastRow = triangle.last!
+            var newRow: [Int] = []
+            for i in 0..<(lastRow.count - 1) {
+                newRow.append((lastRow[i] + lastRow[i + 1]) % 2)
+            }
+            triangle.append(newRow)
+            let rowNum = triangle.count - 1
+            steps.append("Row \(rowNum): [\(newRow.map(String.init).joined(separator: ", "))] (XOR of adjacent pairs from row \(rowNum - 1))")
+        }
+        
+        steps.append("")
+        steps.append("Complete triangle:")
+        for (index, row) in triangle.enumerated() {
+            let padding = String(repeating: " ", count: index * 2)
+            steps.append("\(padding)[\(row.map(String.init).joined(separator: ", "))]")
+        }
+        
+        steps.append("")
+        steps.append("Reading coefficients from left edge (first element of each row):")
+        
+        // Extract coefficients from first column
+        var coeffs: [Int] = []
+        for (index, row) in triangle.enumerated() {
+            coeffs.append(row[0])
+            steps.append("Row \(index): \(row[0])")
+        }
+        
+        steps.append("")
+        steps.append("Coefficients: [\(coeffs.map(String.init).joined(separator: ", "))]")
+        steps.append("")
+        
+        // Build polynomial from coefficients
+        var terms: [String] = []
+        for i in 0..<coeffs.count {
+            if coeffs[i] == 1 {
+                let term = indexToPolynomialTerm(i)
+                terms.append(term)
+                steps.append("Coefficient[\(i)] = 1 → term: \(term)")
+            }
+        }
+        
+        let polynomial = terms.isEmpty ? "0" : terms.joined(separator: " ⊕ ")
+        steps.append("")
+        steps.append("Polynomial: P_f(x,y,z) = \(polynomial)")
+        
+        return (polynomial, steps)
+    }
+    
+    // Convert index to polynomial term
+    private func indexToPolynomialTerm(_ index: Int) -> String {
+        if index == 0 { return "1" }
+        
+        var factors: [String] = []
+        if (index & 4) != 0 { factors.append("x") }
+        if (index & 2) != 0 { factors.append("y") }
+        if (index & 1) != 0 { factors.append("z") }
+        
+        return factors.joined(separator: "")
+    }
+    
     // Convert minterm number to string (e.g., 5 -> x∧ȳ∧z)
     private func mintermToString(_ minterm: Int) -> String {
         let x = (minterm & 4) != 0

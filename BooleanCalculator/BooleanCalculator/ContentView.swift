@@ -227,6 +227,7 @@ struct OperatorButton: View {
 }
 
 // Detailed Truth Table with intermediate steps
+// TODO: extra sign bug, last column bug. 
 struct DetailedTruthTableView: View {
     @ObservedObject var booleanFunc: BooleanFunction
     
@@ -486,6 +487,65 @@ struct ResultsView: View {
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                .padding(.horizontal)
+                
+                // Polynomial Form (Zhegalkin / ANF)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Polynomial Form P_f(x,y,z)")
+                        .font(.headline)
+                        .foregroundColor(.purple)
+                    
+                    // Method 1: Coefficients
+                    let coeffResult = booleanFunc.getPolynomialFormCoefficients()
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        DisclosureGroup("Method 1: Coefficients (Möbius Transform)") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(coeffResult.steps, id: \.self) { step in
+                                    Text(step)
+                                        .font(.system(.body, design: .monospaced))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Method 2: Triangle
+                    let triangleResult = booleanFunc.getPolynomialFormTriangle()
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        DisclosureGroup("Method 2: Pascal's Triangle (XOR of lines)") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(triangleResult.steps, id: \.self) { step in
+                                    Text(step)
+                                        .font(.system(.body, design: .monospaced))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Final result box
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Result:")
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                        Text("P_f(x,y,z) = \(coeffResult.polynomial)")
+                            .font(.system(.title3, design: .monospaced))
+                            .fontWeight(.semibold)
+                            .foregroundColor(.purple)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.purple.opacity(0.1))
                     .cornerRadius(8)
                 }
                 .padding(.horizontal)
