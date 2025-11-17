@@ -12,6 +12,7 @@ struct ContentView: View {
                     Text("Input").tag(0)
                     Text("Truth Table").tag(1)
                     Text("Results").tag(2)
+                    Text("Graphs").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -26,6 +27,9 @@ struct ContentView: View {
                     
                     ResultsView(booleanFunc: booleanFunc)
                         .tag(2)
+                    
+                    GraphsView(booleanFunc: booleanFunc)
+                        .tag(3)
                 }
                 #if os(iOS)
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -587,5 +591,327 @@ struct FormCard: View {
                 .textSelection(.enabled)
         }
         .padding(.horizontal)
+    }
+}
+
+// MARK: - Graphs View
+struct GraphsView: View {
+    @ObservedObject var booleanFunc: BooleanFunction
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                if booleanFunc.expression.isEmpty {
+                    Text("Enter an expression to see graphs")
+                        .foregroundColor(.gray)
+                        .padding()
+                } else {
+                    // Semantic Tree (Truth table based)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Semantic Tree")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                        
+                        Text("Based on truth table analysis")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        SemanticTreeView(booleanFunc: booleanFunc)
+                            .padding()
+                            .background(Color.blue.opacity(0.05))
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Syntactic Tree (Expression based)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Syntactic Tree")
+                            .font(.headline)
+                            .foregroundColor(.green)
+                        
+                        Text("Based on expression structure")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        SyntacticTreeView(booleanFunc: booleanFunc)
+                            .padding()
+                            .background(Color.green.opacity(0.05))
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.vertical)
+        }
+    }
+}
+
+// MARK: - Semantic Tree View
+struct SemanticTreeView: View {
+    @ObservedObject var booleanFunc: BooleanFunction
+    
+    var body: some View {
+        ScrollView(.horizontal) {
+            VStack(spacing: 20) {
+                Text("Shannon Expansion Tree")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                
+                SemanticNodeView(
+                    truthVector: booleanFunc.truthVector,
+                    level: 0,
+                    indexOffset: 0
+                )
+            }
+            .padding()
+        }
+    }
+}
+
+struct SemanticNodeView: View {
+    let truthVector: [Bool]
+    let level: Int  // 0=x, 1=y, 2=z, 3=leaf
+    let indexOffset: Int
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            if level < 3 {
+                // Variable node
+                let varName = level == 0 ? "x" : (level == 1 ? "y" : "z")
+                
+                ZStack {
+                    Text(varName)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .padding(10)
+                        .background(Circle().fill(Color.blue.opacity(0.3)))
+                    
+                    // Diagonal lines positioned relative to the circle
+                    GeometryReader { geometry in
+                        let centerX = geometry.size.width / 2
+                        let bottomY = geometry.size.height
+                        
+                        // Left diagonal line (to positive variable) - solid
+                        Path { path in
+                            path.move(to: CGPoint(x: centerX, y: bottomY))
+                            path.addLine(to: CGPoint(x: centerX - 60, y: bottomY + 40))
+                        }
+                        .stroke(Color.blue.opacity(0.5), lineWidth: 2)
+                        
+                        // Right diagonal line (to negated variable) - dashed
+                        Path { path in
+                            path.move(to: CGPoint(x: centerX, y: bottomY))
+                            path.addLine(to: CGPoint(x: centerX + 60, y: bottomY + 40))
+                        }
+                        .stroke(Color.blue.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                    }
+                }
+                .frame(height: 50)
+                
+                Spacer()
+                    .frame(height: 30)
+                
+                HStack(spacing: 80) {
+                    // Left branch (variable = 1, positive)
+                    VStack(spacing: 5) {
+                        Text(varName)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                        
+                        let leftOffset = indexOffset + (1 << (2 - level))
+                        SemanticNodeView(
+                            truthVector: truthVector,
+                            level: level + 1,
+                            indexOffset: leftOffset
+                        )
+                    }
+                    
+                    // Right branch (variable = 0, negated)
+                    VStack(spacing: 5) {
+                        Text("\(varName)̄")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                        
+                        let rightOffset = indexOffset
+                        SemanticNodeView(
+                            truthVector: truthVector,
+                            level: level + 1,
+                            indexOffset: rightOffset
+                        )
+                    }
+                }
+            } else {
+                // Leaf node - show truth value
+                let value = truthVector[indexOffset]
+                Text(value ? "1" : "0")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(value ? .green : .red)
+                    .padding(8)
+                    .background(Circle().fill(value ? Color.green.opacity(0.2) : Color.red.opacity(0.2)))
+            }
+        }
+    }
+}
+
+// MARK: - Syntactic Tree View
+struct SyntacticTreeView: View {
+    @ObservedObject var booleanFunc: BooleanFunction
+    
+    var body: some View {
+        ScrollView(.horizontal) {
+            VStack(spacing: 15) {
+                if let tree = buildTree(from: booleanFunc.expression) {
+                    TreeNodeView(node: tree, depth: 0)
+                } else {
+                    Text("Cannot parse expression tree")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+        }
+    }
+    
+    private func buildTree(from expression: [ExprToken]) -> TreeNode? {
+        if expression.isEmpty { return nil }
+        
+        // Handle negated variable as unary operator
+        if expression.count == 1, case .variable(let name, let negated) = expression[0] {
+            if negated {
+                // Create negation operator node with variable as child
+                return TreeNode(
+                    value: "¬",
+                    type: .operatorNode,
+                    left: TreeNode(value: name, type: .variable, left: nil, right: nil),
+                    right: nil
+                )
+            } else {
+                return TreeNode(value: name, type: .variable, left: nil, right: nil)
+            }
+        }
+        
+        // Find the main operator (lowest precedence, rightmost)
+        var minPrecedence = Int.max
+        var mainOpIndex: Int?
+        var parenDepth = 0
+        
+        for (index, token) in expression.enumerated() {
+            switch token {
+            case .leftParen:
+                parenDepth += 1
+            case .rightParen:
+                parenDepth -= 1
+            case .operation(let op):
+                if parenDepth == 0 {
+                    if op.precedence <= minPrecedence {
+                        minPrecedence = op.precedence
+                        mainOpIndex = index
+                    }
+                }
+            case .variable:
+                break
+            }
+        }
+        
+        // If we found an operator, split the expression
+        if let opIndex = mainOpIndex {
+            let leftExpr = Array(expression[..<opIndex])
+            let rightExpr = Array(expression[(opIndex + 1)...])
+            
+            if case .operation(let op) = expression[opIndex] {
+                return TreeNode(
+                    value: op.rawValue,
+                    type: .operatorNode,
+                    left: buildTree(from: leftExpr),
+                    right: buildTree(from: rightExpr)
+                )
+            }
+        }
+        
+        // Remove outer parentheses if present
+        if expression.first == .leftParen && expression.last == .rightParen {
+            let inner = Array(expression.dropFirst().dropLast())
+            return buildTree(from: inner)
+        }
+        
+        return nil
+    }
+}
+
+// Tree Node Model
+class TreeNode {
+    let value: String
+    let type: NodeType
+    let left: TreeNode?
+    let right: TreeNode?
+    
+    enum NodeType {
+        case operatorNode
+        case variable
+    }
+    
+    init(value: String, type: NodeType, left: TreeNode?, right: TreeNode?) {
+        self.value = value
+        self.type = type
+        self.left = left
+        self.right = right
+    }
+}
+
+// Tree Node View
+struct TreeNodeView: View {
+    let node: TreeNode
+    let depth: Int
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            // Current node
+            Text(node.value)
+                .font(node.type == .operatorNode ? .title3 : .body)
+                .fontWeight(node.type == .operatorNode ? .bold : .regular)
+                .padding(8)
+                .background(
+                    Circle()
+                        .fill(node.type == .operatorNode ? Color.green.opacity(0.2) : Color.purple.opacity(0.2))
+                )
+            
+            // Children
+            if node.left != nil || node.right != nil {
+                Rectangle()
+                    .fill(Color.green.opacity(0.3))
+                    .frame(width: 2, height: 20)
+                
+                // Check if unary operator (only left child)
+                if node.left != nil && node.right == nil {
+                    // Unary operator (negation)
+                    TreeNodeView(node: node.left!, depth: depth + 1)
+                } else {
+                    // Binary operator
+                    HStack(spacing: 30) {
+                        if let left = node.left {
+                            VStack {
+                                Text("L")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                TreeNodeView(node: left, depth: depth + 1)
+                            }
+                        }
+                        
+                        if let right = node.right {
+                            VStack {
+                                Text("R")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                TreeNodeView(node: right, depth: depth + 1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
